@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fstream>
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/IRBuilder.h"
@@ -120,6 +121,7 @@ bool AFLCoverage::runOnModule(Module &M) {
   for (auto &F : M)
     for (auto &BB : F) {
 
+      assert(block_counter < MAP_SIZE && "counter is too large");
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<> IRB(&(*IP));
 
@@ -156,6 +158,10 @@ bool AFLCoverage::runOnModule(Module &M) {
           IRB.CreateStore(ConstantInt::get(Int64Ty, block_counter >> 1), AFLPrevLoc);
       Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
+      std::ofstream location_file;
+      location_file.open ("block_id_info.txt", std::ios::app);
+      location_file << M.getSourceFileName() << ":" << F.getName().str() << ":" << block_counter << "\n";
+      location_file.close();
       inst_blocks++;
       block_counter++;
 
