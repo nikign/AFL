@@ -58,6 +58,7 @@ namespace {
       AFLCoverage() : ModulePass(ID) { }
 
       bool runOnModule(Module &M) override;
+      static SmallString<32> getmd5(std::string input);
 
       // StringRef getPassName() const override {
       //  return "American Fuzzy Lop Instrumentation";
@@ -65,6 +66,17 @@ namespace {
 
   };
 
+}
+
+
+SmallString<32> AFLCoverage::getmd5(std::string input){
+    MD5 md5_maker = MD5();
+    md5_maker.update(input);
+    llvm::MD5::MD5Result md5_result;
+    md5_maker.final(md5_result);
+    SmallString<32> md5_str;
+    md5_maker.stringifyResult(md5_result, md5_str);
+    return md5_str;
 }
 
 
@@ -117,7 +129,9 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   int inst_blocks = 0;
   u64 block_counter = 0;
-
+  std::ofstream location_file;
+  std::error_code llvm_of_error; 
+  
   for (auto &F : M)
     for (auto &BB : F) {
 
@@ -158,14 +172,19 @@ bool AFLCoverage::runOnModule(Module &M) {
           IRB.CreateStore(ConstantInt::get(Int64Ty, block_counter >> 1), AFLPrevLoc);
       Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
-      std::ofstream location_file;
-      location_file.open ("block_id_info.txt", std::ios::app);
-      location_file << M.getSourceFileName() << ":" << F.getName().str() << ":" << block_counter << "\n";
-      location_file.close();
+      // Make a raw_string_ostream to save the content of a block into a string
+      std::string block_string;
+      llvm::raw_string_ostream block_string_stream(block_string);
+      block_string_stream << BB;
+      SmallString<32> block_md5 = AFLCoverage::getmd5(block_string_stream.str());
+
+      location_file << M.getSourceFileName() << ":" << F.getName().str() << ":" << block_md5.c_str() << ":" << block_counter << "\n";
+      
       inst_blocks++;
       block_counter++;
 
     }
+  location_file.close();
 
   /* Say something nice. */
 
