@@ -38,6 +38,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fstream>
+#include<iostream>
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/IRBuilder.h"
@@ -56,20 +57,14 @@ namespace {
 
       static char ID;
       AFLCoverage() : ModulePass(ID) { }
-
       bool runOnModule(Module &M) override;
-      static SmallString<32> getmd5(std::string input);
-
-      // StringRef getPassName() const override {
-      //  return "American Fuzzy Lop Instrumentation";
-      // }
 
   };
 
 }
 
 
-SmallString<32> AFLCoverage::getmd5(std::string input){
+SmallString<32> getmd5(std::string input){
     MD5 md5_maker = MD5();
     md5_maker.update(input);
     llvm::MD5::MD5Result md5_result;
@@ -87,8 +82,6 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   LLVMContext &C = M.getContext();
 
-  IntegerType *Int8Ty  = IntegerType::getInt8Ty(C);
-  IntegerType *Int32Ty = IntegerType::getInt32Ty(C);
   IntegerType *Int64Ty = IntegerType::getInt64Ty(C);
 
   /* Show a banner */
@@ -101,36 +94,24 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   } else be_quiet = 1;
 
-  /* Decide instrumentation ratio */
+  /* Get globals for the SHM region. */
 
-  char* inst_ratio_str = getenv("AFL_INST_RATIO");
-  unsigned int inst_ratio = 100;
-
-  if (inst_ratio_str) {
-
-    if (sscanf(inst_ratio_str, "%u", &inst_ratio) != 1 || !inst_ratio ||
-        inst_ratio > 100)
-      FATAL("Bad value of AFL_INST_RATIO (must be between 1 and 100)");
-
-  }
-
-  /* Get globals for the SHM region and the previous location. Note that
-     __afl_prev_loc is thread-local. */
-
-  GlobalVariable *AFLMapPtr =
+  GlobalVariable *BBCoverageMapPtr =
       new GlobalVariable(M, PointerType::get(Int64Ty, 0), false,
-                         GlobalValue::ExternalLinkage, 0, "__afl_area_ptr");
-
-  GlobalVariable *AFLPrevLoc = new GlobalVariable(
-      M, Int64Ty, false, GlobalValue::ExternalLinkage, 0, "__afl_prev_loc",
-      0, GlobalVariable::GeneralDynamicTLSModel, 0, false);
+                         GlobalValue::ExternalLinkage, 0, "__bb_coverage_ptr");
 
   /* Instrument all the things! */
 
-  int inst_blocks = 0;
   u64 block_counter = 0;
   std::ofstream location_file;
+  bool write_to_file = false;
   std::error_code llvm_of_error; 
+  const char* output_file_name = std::getenv("BB_LOGFILE_NAME");
+
+  if (output_file_name != nullptr) {
+    location_file.open(output_file_name, std::ios::trunc);
+    write_to_file = true;
+  }
   
   for (auto &F : M)
     for (auto &BB : F) {
@@ -139,24 +120,15 @@ bool AFLCoverage::runOnModule(Module &M) {
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<> IRB(&(*IP));
 
-      if (AFL_R(100) >= inst_ratio) continue;
-
       /* Make up cur_loc based on block counter */
 
-      ConstantInt *CurLoc = ConstantInt::get(Int64Ty, block_counter);
-
-      /* Load prev_loc */
-
-      LoadInst *PrevLoc = IRB.CreateLoad(AFLPrevLoc);
-      PrevLoc->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
-      Value *PrevLocCasted = IRB.CreateZExt(PrevLoc, IRB.getInt64Ty());
+      ConstantInt *CurBB = ConstantInt::get(Int64Ty, block_counter);
 
       /* Load SHM pointer */
 
-      LoadInst *MapPtr = IRB.CreateLoad(AFLMapPtr);
+      LoadInst *MapPtr = IRB.CreateLoad(BBCoverageMapPtr);
       MapPtr->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
-      Value *MapPtrIdx =
-          IRB.CreateGEP(MapPtr, IRB.CreateXor(PrevLocCasted, CurLoc));
+      Value *MapPtrIdx = IRB.CreateGEP(MapPtr,  CurBB);
 
       /* Update bitmap */
 
@@ -166,35 +138,31 @@ bool AFLCoverage::runOnModule(Module &M) {
       IRB.CreateStore(Incr, MapPtrIdx)
           ->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
-      /* Set prev_loc to cur_loc >> 1 */
+      if (write_to_file){
+        
+        /* Make a raw_string_ostream to save the content of a block into a string */
 
-      StoreInst *Store =
-          IRB.CreateStore(ConstantInt::get(Int64Ty, block_counter >> 1), AFLPrevLoc);
-      Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
+        std::string block_string;
+        llvm::raw_string_ostream block_string_stream(block_string);
+        block_string_stream << BB;
+        SmallString<32> block_md5 = getmd5(block_string_stream.str());
+        location_file << M.getSourceFileName() << ":" << F.getName().str() << ":" << block_md5.c_str() << ":" << block_counter << "\n";
 
-      // Make a raw_string_ostream to save the content of a block into a string
-      std::string block_string;
-      llvm::raw_string_ostream block_string_stream(block_string);
-      block_string_stream << BB;
-      SmallString<32> block_md5 = AFLCoverage::getmd5(block_string_stream.str());
-
-      location_file << M.getSourceFileName() << ":" << F.getName().str() << ":" << block_md5.c_str() << ":" << block_counter << "\n";
-      
-      inst_blocks++;
+      }
+            
       block_counter++;
 
     }
-  location_file.close();
 
   /* Say something nice. */
 
   if (!be_quiet) {
 
-    if (!inst_blocks) WARNF("No instrumentation targets found.");
-    else OKF("Instrumented %u locations (%s mode, ratio %u%%).",
-             inst_blocks, getenv("AFL_HARDEN") ? "hardened" :
+    if (!block_counter) WARNF("No instrumentation targets found.");
+    else OKF("Instrumented %u locations (%s mode).",
+             block_counter, getenv("AFL_HARDEN") ? "hardened" :
              ((getenv("AFL_USE_ASAN") || getenv("AFL_USE_MSAN")) ?
-              "ASAN/MSAN" : "non-hardened"), inst_ratio);
+              "ASAN/MSAN" : "non-hardened"));
 
   }
 

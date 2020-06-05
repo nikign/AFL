@@ -57,10 +57,10 @@
    is used for instrumentation output before __afl_map_shm() has a chance to run.
    It will end up as .comm, so it shouldn't be too wasteful. */
 
-u64  __afl_area_initial[MAP_SIZE];
-u64* __afl_area_ptr = __afl_area_initial;
+u64  __bb_initial[MAP_SIZE];
+u64* __bb_coverage_ptr = __bb_initial;
 
-__thread u64 __afl_prev_loc;
+__thread u64 __bb_id;
 
 
 /* Running in persistent mode? */
@@ -82,16 +82,16 @@ static void __afl_map_shm(void) {
 
     u32 shm_id = atoi(id_str);
 
-    __afl_area_ptr = shmat(shm_id, NULL, 0);
+    __bb_coverage_ptr = shmat(shm_id, NULL, 0);
 
     /* Whooooops. */
 
-    if (__afl_area_ptr == (void *)-1) _exit(1);
+    if (__bb_coverage_ptr == (void *)-1) _exit(1);
 
     /* Write something into the bitmap so that even with low AFL_INST_RATIO,
        our parent doesn't give up on us. */
 
-    __afl_area_ptr[0] = 1;
+    __bb_coverage_ptr[0] = 1;
 
   }
 
@@ -195,9 +195,9 @@ int __afl_persistent_loop(unsigned int max_cnt) {
 
     if (is_persistent) {
 
-      memset(__afl_area_ptr, 0, MAP_SIZE);
-      __afl_area_ptr[0] = 1;
-      __afl_prev_loc = 0;
+      memset(__bb_coverage_ptr, 0, MAP_SIZE);
+      __bb_coverage_ptr[0] = 1;
+      __bb_id = 0;
     }
 
     cycle_cnt  = max_cnt;
@@ -212,8 +212,8 @@ int __afl_persistent_loop(unsigned int max_cnt) {
 
       raise(SIGSTOP);
 
-      __afl_area_ptr[0] = 1;
-      __afl_prev_loc = 0;
+      __bb_coverage_ptr[0] = 1;
+      __bb_id = 0;
 
       return 1;
 
@@ -223,7 +223,7 @@ int __afl_persistent_loop(unsigned int max_cnt) {
          follows the loop is not traced. We do that by pivoting back to the
          dummy output region. */
 
-      __afl_area_ptr = __afl_area_initial;
+      __bb_coverage_ptr = __bb_initial;
 
     }
 
@@ -273,7 +273,7 @@ __attribute__((constructor(CONST_PRIO))) void __afl_auto_init(void) {
    edge (as opposed to every basic block). */
 
 void __sanitizer_cov_trace_pc_guard(uint32_t* guard) {
-  __afl_area_ptr[*guard]++;
+  __bb_coverage_ptr[*guard]++;
 }
 
 
