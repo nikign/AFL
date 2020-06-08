@@ -16,7 +16,6 @@ def get_arguments(argv):
     except getopt.GetoptError:
         print('compare_runs.py -i <input_bc_file> -o <output_bc_file> -n <re-run_counts> -f "<clang_run_flags>" -l "<log_file_name>"')
         sys.exit(2)
-    print(opts)
     for opt, arg in opts:
         if opt == '-h':
             print('compare_runs.py -i <input_bc_file> -o <output_bc_file> -n <re-run_counts> -f "<clang_run_flags>" -l "<log_file_name>"')
@@ -38,13 +37,14 @@ def get_arguments(argv):
 def main(argv):
     bc_file, output_bc, test_count, flags, logfile_name = get_arguments(argv)
     first_counter = 0
-    current_full_path = os.getcwd()
-    llvm_full_path = os.path.join(current_full_path, './afl-llvm-pass.so')
-    afl_rt_path = os.path.join(current_full_path, 'afl-llvm-rt.o')
-    print(logfile_name)
+    llvm_full_path = os.path.abspath('./afl-llvm-pass.so')
+    afl_rt_path = os.path.abspath('afl-llvm-rt.o')
     os.environ["BB_LOGFILE_NAME"] = logfile_name
     for i in range(0, test_count):
         os.system('clang -Xclang -load -Xclang %s %s %s %s -o %s' % (llvm_full_path, bc_file, afl_rt_path, flags, output_bc))
+        if not os.path.isfile(logfile_name):
+            print("Output file was not generated successfully.")
+            continue
         os.rename(logfile_name, "%s_%d" %(logfile_name, i))
         if first_counter != i:
             equal = filecmp.cmp("%s_%d" %(logfile_name, i), "%s_%d" %(logfile_name, first_counter))

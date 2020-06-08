@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <fstream>
 #include<iostream>
+#include <inttypes.h>
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/IRBuilder.h"
@@ -104,13 +105,14 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   u64 block_counter = 0;
   std::ofstream location_file;
-  bool write_to_file = false;
   std::error_code llvm_of_error; 
   const char* output_file_name = std::getenv("BB_LOGFILE_NAME");
 
   if (output_file_name != nullptr) {
     location_file.open(output_file_name, std::ios::trunc);
-    write_to_file = true;
+    if (location_file.fail()){
+      std::printf("Output log file \"%s\" could not be opened successfully. The logs will not be saved.\n", output_file_name);
+    }
   }
   
   for (auto &F : M)
@@ -138,8 +140,7 @@ bool AFLCoverage::runOnModule(Module &M) {
       IRB.CreateStore(Incr, MapPtrIdx)
           ->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
-      if (write_to_file){
-        
+      if (location_file.is_open()){
         /* Make a raw_string_ostream to save the content of a block into a string */
 
         std::string block_string;
@@ -153,13 +154,16 @@ bool AFLCoverage::runOnModule(Module &M) {
       block_counter++;
 
     }
+    if (location_file.is_open()){
+      location_file.close();
+    }
 
   /* Say something nice. */
 
   if (!be_quiet) {
 
     if (!block_counter) WARNF("No instrumentation targets found.");
-    else OKF("Instrumented %u locations (%s mode).",
+    else OKF("Instrumented %llu locations (%s mode).",
              block_counter, getenv("AFL_HARDEN") ? "hardened" :
              ((getenv("AFL_USE_ASAN") || getenv("AFL_USE_MSAN")) ?
               "ASAN/MSAN" : "non-hardened"));
