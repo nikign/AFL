@@ -1,5 +1,6 @@
 import filecmp
 import getopt
+import inspect
 import os
 import sys
 import subprocess
@@ -37,8 +38,9 @@ def get_arguments(argv):
 def main(argv):
     bc_file, output_bc, test_count, flags, logfile_name = get_arguments(argv)
     first_counter = 0
-    llvm_full_path = os.path.abspath('./afl-llvm-pass.so')
-    afl_rt_path = os.path.abspath('afl-llvm-rt.o')
+    current_file_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+    llvm_full_path = os.path.join(current_file_path, './afl-llvm-pass.so')
+    afl_rt_path = os.path.join(current_file_path, "afl-llvm-rt.o")
     os.environ["BB_LOGFILE_NAME"] = logfile_name
     for i in range(0, test_count):
         os.system('clang -Xclang -load -Xclang %s %s %s %s -o %s' % (llvm_full_path, bc_file, afl_rt_path, flags, output_bc))
