@@ -115,7 +115,7 @@ bool AFLCoverage::runOnModule(Module &M) {
     }
   }
   
-  for (auto &F : M)
+  for (auto &F : M){
     for (auto &BB : F) {
 
       assert(block_counter < MAP_SIZE && "counter is too large");
@@ -154,9 +154,10 @@ bool AFLCoverage::runOnModule(Module &M) {
       block_counter++;
 
     }
-    if (location_file.is_open()){
-      location_file.close();
-    }
+  }
+  if (location_file.is_open()){
+    location_file.close();
+  }
 
   /* Say something nice. */
 
