@@ -148,7 +148,6 @@ static void remove_shm(void) {
 
 static void setup_shm(void) {
 
-// TODO: do we need to update this?
   char* shm_str;
 
   shm_id = shmget(IPC_PRIVATE, MAP_SIZE * sizeof(uint64_t), IPC_CREAT | IPC_EXCL | 0600);
@@ -199,6 +198,7 @@ static u32 write_results(void) {
 
 
   if (binary_mode) {
+
     for (i = 0; i < MAP_SIZE; i++)
       if (trace_bits[i]) ret++;
     
@@ -206,6 +206,7 @@ static u32 write_results(void) {
     close(fd);
 
   } else {
+
     FILE* f = fdopen(fd, "w");
 
     if (!f) PFATAL("fdopen() failed");
@@ -216,6 +217,7 @@ static u32 write_results(void) {
       ret++;
 
       if (cmin_mode) {
+
         if (child_timed_out) break;
         if (!caa && child_crashed != cco) break;
 
@@ -248,6 +250,7 @@ static void handle_timeout(int sig) {
 /* Execute target application. */
 
 static void run_target(char** argv) {
+
   static struct itimerval it;
   int status = 0;
 
@@ -255,11 +258,11 @@ static void run_target(char** argv) {
     SAYF("-- Program output begins --\n" cRST);
 
   MEM_BARRIER();
-  
+
   child_pid = fork();
 
   if (child_pid < 0) PFATAL("fork() failed");
-  
+
   if (!child_pid) {
 
     struct rlimit r;
@@ -290,17 +293,18 @@ static void run_target(char** argv) {
       setrlimit(RLIMIT_DATA, &r); /* Ignore errors */
 
 #endif /* ^RLIMIT_AS */
-    
+
     }
-    
+
     if (!keep_cores) r.rlim_max = r.rlim_cur = 0;
     else r.rlim_max = r.rlim_cur = RLIM_INFINITY;
-    
+
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
     
     if (!getenv("LD_BIND_LAZY")) setenv("LD_BIND_NOW", "1", 0);
 
     setsid();
+
     execv(target_path, argv);
 
     *(u64*)trace_bits = EXEC_FAIL_SIG;
@@ -506,7 +510,6 @@ static void usage(char* argv0) {
 
 
 /* Find binary. */
-// Question! why is fname unsigned int? why not string or char*
 static void find_binary(char* fname) {
 
   char* env_path = 0;
@@ -523,8 +526,9 @@ static void find_binary(char* fname) {
   } else {
 
     while (env_path) {
-        // todo: what is env_path, cur_elem, delim? u8 or u64?
+
       char *cur_elem, *delim = strchr(env_path, ':');
+
       if (delim) {
 
         cur_elem = ck_alloc(delim - env_path + 1);
@@ -624,7 +628,6 @@ static char** get_qemu_argv(char* own_loc, char** argv, int argc) {
 
 int main(int argc, char** argv) {
 
-  
   s64 opt;
   u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0;
   u32 tcnt;
@@ -746,11 +749,15 @@ int main(int argc, char** argv) {
       default:
 
         usage(argv[0]);
+
     }
+
   }
   if (optind == argc || !out_file) usage(argv[0]);
+
   setup_shm();
   setup_signal_handlers();
+
   set_up_environment();
 
   find_binary(argv[optind]);
@@ -759,17 +766,18 @@ int main(int argc, char** argv) {
     show_banner();
     ACTF("Executing '%s'...\n", target_path);
   }
-  
+
   detect_file_args(argv + optind);
 
   if (qemu_mode)
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
+
   run_target(use_argv);
-  
+
   tcnt = write_results();
-  
+
   if (!quiet_mode) {
 
     if (!tcnt) FATAL("No instrumentation detected" cRST);
