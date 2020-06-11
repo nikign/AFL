@@ -300,7 +300,7 @@ static void run_target(char** argv) {
     else r.rlim_max = r.rlim_cur = RLIM_INFINITY;
 
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
-    
+
     if (!getenv("LD_BIND_LAZY")) setenv("LD_BIND_NOW", "1", 0);
 
     setsid();
