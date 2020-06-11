@@ -56,9 +56,9 @@
 
 static s32 child_pid;                 /* PID of the tested program         */
 
-static u8* trace_bits;                /* SHM with instrumentation bitmap   */
+static u64* trace_bits;                /* SHM with instrumentation bitmap   */
 
-static u8 *out_file,                  /* Trace output file                 */
+static char *out_file,                  /* Trace output file                 */
           *doc_path,                  /* Path to docs                      */
           *target_path,               /* Path to target binary             */
           *at_file;                   /* Substitution string for @@        */
@@ -111,14 +111,15 @@ static const u8 count_class_binary[256] = {
 
 };
 
-static void classify_counts(u8* mem, const u8* map) {
+static void classify_counts(u64* mem, const u8* map) {
 
   u32 i = MAP_SIZE;
 
   if (edges_only) {
 
+    // Initialize the map with 0
     while (i--) {
-      if (*mem) *mem = 1;
+      if (*mem) *mem = 0;
       mem++;
     }
 
@@ -147,9 +148,10 @@ static void remove_shm(void) {
 
 static void setup_shm(void) {
 
-  u8* shm_str;
+// TODO: do we need to update this?
+  char* shm_str;
 
-  shm_id = shmget(IPC_PRIVATE, MAP_SIZE, IPC_CREAT | IPC_EXCL | 0600);
+  shm_id = shmget(IPC_PRIVATE, MAP_SIZE * sizeof(uint64_t), IPC_CREAT | IPC_EXCL | 0600);
 
   if (shm_id < 0) PFATAL("shmget() failed");
 
@@ -174,7 +176,7 @@ static u32 write_results(void) {
   s32 fd;
   u32 i, ret = 0;
 
-  u8  cco = !!getenv("AFL_CMIN_CRASHES_ONLY"),
+  char  cco = !!getenv("AFL_CMIN_CRASHES_ONLY"),
       caa = !!getenv("AFL_CMIN_ALLOW_ANY");
 
   if (!strncmp(out_file, "/dev/", 5)) {
@@ -197,7 +199,6 @@ static u32 write_results(void) {
 
 
   if (binary_mode) {
-
     for (i = 0; i < MAP_SIZE; i++)
       if (trace_bits[i]) ret++;
     
@@ -205,7 +206,6 @@ static u32 write_results(void) {
     close(fd);
 
   } else {
-
     FILE* f = fdopen(fd, "w");
 
     if (!f) PFATAL("fdopen() failed");
@@ -216,14 +216,14 @@ static u32 write_results(void) {
       ret++;
 
       if (cmin_mode) {
-
         if (child_timed_out) break;
         if (!caa && child_crashed != cco) break;
 
-        fprintf(f, "%u%u\n", trace_bits[i], i);
+        fprintf(f, "%llu%u\n", trace_bits[i], i);
 
-      } else fprintf(f, "%06u:%u\n", i, trace_bits[i]);
-
+      } else {
+          fprintf(f, "%06u:%llu\n", i, trace_bits[i]);
+      }
     }
   
     fclose(f);
@@ -248,7 +248,6 @@ static void handle_timeout(int sig) {
 /* Execute target application. */
 
 static void run_target(char** argv) {
-
   static struct itimerval it;
   int status = 0;
 
@@ -256,11 +255,11 @@ static void run_target(char** argv) {
     SAYF("-- Program output begins --\n" cRST);
 
   MEM_BARRIER();
-
+  
   child_pid = fork();
 
   if (child_pid < 0) PFATAL("fork() failed");
-
+  
   if (!child_pid) {
 
     struct rlimit r;
@@ -270,7 +269,7 @@ static void run_target(char** argv) {
       s32 fd = open("/dev/null", O_RDWR);
 
       if (fd < 0 || dup2(fd, 1) < 0 || dup2(fd, 2) < 0) {
-        *(u32*)trace_bits = EXEC_FAIL_SIG;
+        *(u64*)trace_bits = EXEC_FAIL_SIG;
         PFATAL("Descriptor initialization failed");
       }
 
@@ -291,21 +290,20 @@ static void run_target(char** argv) {
       setrlimit(RLIMIT_DATA, &r); /* Ignore errors */
 
 #endif /* ^RLIMIT_AS */
-
+    
     }
-
+    
     if (!keep_cores) r.rlim_max = r.rlim_cur = 0;
     else r.rlim_max = r.rlim_cur = RLIM_INFINITY;
-
+    
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
-
+    
     if (!getenv("LD_BIND_LAZY")) setenv("LD_BIND_NOW", "1", 0);
 
     setsid();
-
     execv(target_path, argv);
 
-    *(u32*)trace_bits = EXEC_FAIL_SIG;
+    *(u64*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
 
   }
@@ -426,17 +424,17 @@ static void setup_signal_handlers(void) {
 static void detect_file_args(char** argv) {
 
   u32 i = 0;
-  u8* cwd = getcwd(NULL, 0);
+  char* cwd = getcwd(NULL, 0);
 
   if (!cwd) PFATAL("getcwd() failed");
 
   while (argv[i]) {
 
-    u8* aa_loc = strstr(argv[i], "@@");
+    char* aa_loc = strstr(argv[i], "@@");
 
     if (aa_loc) {
 
-      u8 *aa_subst, *n_arg;
+      char *aa_subst, *n_arg;
 
       if (!at_file) FATAL("@@ syntax is not supported by this tool.");
 
@@ -475,7 +473,7 @@ static void show_banner(void) {
 
 /* Display usage hints. */
 
-static void usage(u8* argv0) {
+static void usage(char* argv0) {
 
   show_banner();
 
@@ -508,10 +506,10 @@ static void usage(u8* argv0) {
 
 
 /* Find binary. */
+// Question! why is fname unsigned int? why not string or char*
+static void find_binary(char* fname) {
 
-static void find_binary(u8* fname) {
-
-  u8* env_path = 0;
+  char* env_path = 0;
   struct stat st;
 
   if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
@@ -525,9 +523,8 @@ static void find_binary(u8* fname) {
   } else {
 
     while (env_path) {
-
-      u8 *cur_elem, *delim = strchr(env_path, ':');
-
+        // todo: what is env_path, cur_elem, delim? u8 or u64?
+      char *cur_elem, *delim = strchr(env_path, ':');
       if (delim) {
 
         cur_elem = ck_alloc(delim - env_path + 1);
@@ -562,10 +559,10 @@ static void find_binary(u8* fname) {
 
 /* Fix up argv for QEMU. */
 
-static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+static char** get_qemu_argv(char* own_loc, char** argv, int argc) {
 
   char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
-  u8 *tmp, *cp, *rsl, *own_copy;
+  char *tmp, *cp, *rsl, *own_copy;
 
   /* Workaround for a QEMU stability glitch. */
 
@@ -627,26 +624,27 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
 int main(int argc, char** argv) {
 
-  s32 opt;
+  
+  s64 opt;
   u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0;
   u32 tcnt;
   char** use_argv;
 
   doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
 
-  while ((opt = getopt(argc,argv,"+o:m:t:A:eqZQbc")) > 0)
+  while ((opt = getopt(argc,argv,"+o:m:t:A:eqZQbc")) > 0){
 
     switch (opt) {
 
-      case 'o':
+      case 'o': {
 
         if (out_file) FATAL("Multiple -o options not supported");
         out_file = optarg;
         break;
-
+      }
       case 'm': {
 
-          u8 suffix = 'M';
+          char suffix = 'M';
 
           if (mem_limit_given) FATAL("Multiple -m options not supported");
           mem_limit_given = 1;
@@ -748,14 +746,11 @@ int main(int argc, char** argv) {
       default:
 
         usage(argv[0]);
-
     }
-
+  }
   if (optind == argc || !out_file) usage(argv[0]);
-
   setup_shm();
   setup_signal_handlers();
-
   set_up_environment();
 
   find_binary(argv[optind]);
@@ -764,18 +759,17 @@ int main(int argc, char** argv) {
     show_banner();
     ACTF("Executing '%s'...\n", target_path);
   }
-
+  
   detect_file_args(argv + optind);
 
   if (qemu_mode)
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
-
   run_target(use_argv);
-
+  
   tcnt = write_results();
-
+  
   if (!quiet_mode) {
 
     if (!tcnt) FATAL("No instrumentation detected" cRST);
