@@ -1,0 +1,7 @@
+line1 example
+line 2 example
+0 at start of line
+non zero line
+more non zero lines
+0 again
+0

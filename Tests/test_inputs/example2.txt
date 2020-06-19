@@ -1,0 +1,4 @@
+example input
+more inputs
+0 for testing
+non zero for testing
