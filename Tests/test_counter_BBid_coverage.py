@@ -59,11 +59,11 @@ def test_coverage():
     assert 8 in line_coverage, 'File does not exist and line 8 should be covered.'
     assert 3 not in line_coverage, 'File does not exist so the process part of code should not be covered'
 
-    test_input = get_full_path('test_input/example_empty_file.txt')
+    test_input = get_full_path('test_inputs/example_empty_file.txt')
     line_coverage = calculate_coverage_for_file(test_program, test_input)
     assert len(line_coverage) < 11, 'The test_instr.c file should only have 10 blocks.'
     assert 3 not in line_coverage, 'File is empty, so the process part of code should not be covered'
-    assert 9 not in line_coverage, 'Program should exit once the file is not found'
+    assert 9 in line_coverage, 'Program should continue the part after file handling once the file is empty'
 
 
 test_coverage()
