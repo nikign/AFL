@@ -80,59 +80,6 @@ static volatile u8
            child_timed_out,           /* Child timed out?                  */
            child_crashed;             /* Child crashed?                    */
 
-/* Classify tuple counts. Instead of mapping to individual bits, as in
-   afl-fuzz.c, we map to more user-friendly numbers between 1 and 8. */
-
-static const u8 count_class_human[256] = {
-
-  [0]           = 0,
-  [1]           = 1,
-  [2]           = 2,
-  [3]           = 3,
-  [4 ... 7]     = 4,
-  [8 ... 15]    = 5,
-  [16 ... 31]   = 6,
-  [32 ... 127]  = 7,
-  [128 ... 255] = 8
-
-};
-
-static const u8 count_class_binary[256] = {
-
-  [0]           = 0,
-  [1]           = 1,
-  [2]           = 2,
-  [3]           = 4,
-  [4 ... 7]     = 8,
-  [8 ... 15]    = 16,
-  [16 ... 31]   = 32,
-  [32 ... 127]  = 64,
-  [128 ... 255] = 128
-
-};
-
-static void classify_counts(u64* mem, const u8* map) {
-
-  u32 i = MAP_SIZE;
-
-  if (edges_only) {
-
-    // Initialize the map with 0
-    while (i--) {
-      if (*mem) *mem = 0;
-      mem++;
-    }
-
-  } else {
-
-    while (i--) {
-      *mem = map[*mem];
-      mem++;
-    }
-
-  }
-
-}
 
 
 /* Get rid of shared memory (atexit handler). */
@@ -337,9 +284,6 @@ static void run_target(char** argv) {
 
   if (*(u32*)trace_bits == EXEC_FAIL_SIG)
     FATAL("Unable to execute '%s'", argv[0]);
-
-  classify_counts(trace_bits, binary_mode ?
-                  count_class_binary : count_class_human);
 
   if (!quiet_mode)
     SAYF(cRST "-- Program output ends --\n");
