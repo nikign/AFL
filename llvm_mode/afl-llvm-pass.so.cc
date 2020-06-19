@@ -103,7 +103,7 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   /* Instrument all the things! */
 
-  u64 block_counter = 0;
+  u64 block_counter = 1;
   std::ofstream location_file;
   std::error_code llvm_of_error; 
   const char* output_file_name = std::getenv("BB_LOGFILE_NAME");
@@ -111,7 +111,7 @@ bool AFLCoverage::runOnModule(Module &M) {
   if (output_file_name != nullptr) {
     location_file.open(output_file_name, std::ios::trunc);
     if (location_file.fail()){
-      std::printf("Output log file \"%s\" could not be opened successfully. The logs will not be saved.\n", output_file_name);
+      FATAL("Output log file \"%s\" could not be opened successfully. The logs cannot be saved.\n", output_file_name);
     }
   }
   
