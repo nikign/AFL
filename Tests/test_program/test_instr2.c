@@ -27,8 +27,17 @@
 #include <string.h>
 #include <unistd.h>
 
+int calc_factorial(int file_lines_count){// B28
+    int output_value = 1;
+    for (int i = 1; i < file_lines_count; i++){
+        output_value *= i;
+    }
+    
+    return output_value;
+}
+
 int main(int argc, char** argv) {
-  // B1
+  // B12
   char buf[128];
   char* filename;
   filename = argv[1];
@@ -37,49 +46,46 @@ int main(int argc, char** argv) {
   fp = fopen(filename , "r");
   int i = 0;
   int file_status = 1;
+  int file_lines_count = 0;
   if (fp != NULL) {
-    // B2
     i++;
-    while (fgets(buf, 128, fp) != NULL) {
-      // B3
-      i *= 2;
-      if(strlen(buf) < 1) { 
-        //B4
-        printf("Hum?\n"); 
-        exit(1);
-      }
-      //B5
-      i *= 3;
-
-      // if and else merged B6 set file status, B7 print
-      if (buf[0] == '0') {
-        // B6
-        file_status = 45;
-        printf("Looks like a zero to me!\n");
-      } 
-      else {
-        file_status = i;
-        printf("A non-zero value? How quaint!\n");
-      }
+    while (fgets(buf, 128, fp) != NULL) {// B13
+      
+      file_lines_count++;
       i += 5;
     }
-    // B7
+    // B14
     fclose(fp); 
   }
   else {
-    // B8
+    // B15
     file_status = i;
     exit(2); 
   }
 
+  // B14
   int j;
-  for (j=0; j < 5000; j++) { // B9
-    i = j;
+  for (j=0; j < file_lines_count; j++) { // B16
+    printf("line %d out of %d", j, file_lines_count);
   }
-  // B10
-  printf("%d\n", i);
-  printf("%d\n", file_status);
-
+  // B17
+  switch (file_lines_count)
+  {
+    case 0:{ // B26
+        printf("file was empty");
+        break;
+    }
+    case 1:{ // B27
+        printf("such a small file!");
+        break;
+    }
+    default:{ // B18, B19
+        int factorial = calc_factorial(file_lines_count);
+        // B29
+        printf("The factorial of the lines of input is %d", factorial);
+    }
+  }
+//   B30
   exit(0);
 
 }
