@@ -56,9 +56,9 @@
 
 static s32 child_pid;                 /* PID of the tested program         */
 
-static u8* trace_bits;                /* SHM with instrumentation bitmap   */
+static u64* trace_bits;                /* SHM with instrumentation bitmap   */
 
-static u8 *out_file,                  /* Trace output file                 */
+static char *out_file,                  /* Trace output file                 */
           *doc_path,                  /* Path to docs                      */
           *target_path,               /* Path to target binary             */
           *at_file;                   /* Substitution string for @@        */
@@ -80,58 +80,6 @@ static volatile u8
            child_timed_out,           /* Child timed out?                  */
            child_crashed;             /* Child crashed?                    */
 
-/* Classify tuple counts. Instead of mapping to individual bits, as in
-   afl-fuzz.c, we map to more user-friendly numbers between 1 and 8. */
-
-static const u8 count_class_human[256] = {
-
-  [0]           = 0,
-  [1]           = 1,
-  [2]           = 2,
-  [3]           = 3,
-  [4 ... 7]     = 4,
-  [8 ... 15]    = 5,
-  [16 ... 31]   = 6,
-  [32 ... 127]  = 7,
-  [128 ... 255] = 8
-
-};
-
-static const u8 count_class_binary[256] = {
-
-  [0]           = 0,
-  [1]           = 1,
-  [2]           = 2,
-  [3]           = 4,
-  [4 ... 7]     = 8,
-  [8 ... 15]    = 16,
-  [16 ... 31]   = 32,
-  [32 ... 127]  = 64,
-  [128 ... 255] = 128
-
-};
-
-static void classify_counts(u8* mem, const u8* map) {
-
-  u32 i = MAP_SIZE;
-
-  if (edges_only) {
-
-    while (i--) {
-      if (*mem) *mem = 1;
-      mem++;
-    }
-
-  } else {
-
-    while (i--) {
-      *mem = map[*mem];
-      mem++;
-    }
-
-  }
-
-}
 
 
 /* Get rid of shared memory (atexit handler). */
@@ -147,9 +95,9 @@ static void remove_shm(void) {
 
 static void setup_shm(void) {
 
-  u8* shm_str;
+  char* shm_str;
 
-  shm_id = shmget(IPC_PRIVATE, MAP_SIZE, IPC_CREAT | IPC_EXCL | 0600);
+  shm_id = shmget(IPC_PRIVATE, MAP_SIZE * sizeof(uint64_t), IPC_CREAT | IPC_EXCL | 0600);
 
   if (shm_id < 0) PFATAL("shmget() failed");
 
@@ -174,7 +122,7 @@ static u32 write_results(void) {
   s32 fd;
   u32 i, ret = 0;
 
-  u8  cco = !!getenv("AFL_CMIN_CRASHES_ONLY"),
+  char  cco = !!getenv("AFL_CMIN_CRASHES_ONLY"),
       caa = !!getenv("AFL_CMIN_ALLOW_ANY");
 
   if (!strncmp(out_file, "/dev/", 5)) {
@@ -220,10 +168,11 @@ static u32 write_results(void) {
         if (child_timed_out) break;
         if (!caa && child_crashed != cco) break;
 
-        fprintf(f, "%u%u\n", trace_bits[i], i);
+        fprintf(f, "%llu%u\n", trace_bits[i], i);
 
-      } else fprintf(f, "%06u:%u\n", i, trace_bits[i]);
-
+      } else {
+          fprintf(f, "%06u:%llu\n", i, trace_bits[i]);
+      }
     }
   
     fclose(f);
@@ -270,7 +219,7 @@ static void run_target(char** argv) {
       s32 fd = open("/dev/null", O_RDWR);
 
       if (fd < 0 || dup2(fd, 1) < 0 || dup2(fd, 2) < 0) {
-        *(u32*)trace_bits = EXEC_FAIL_SIG;
+        *(u64*)trace_bits = EXEC_FAIL_SIG;
         PFATAL("Descriptor initialization failed");
       }
 
@@ -305,7 +254,7 @@ static void run_target(char** argv) {
 
     execv(target_path, argv);
 
-    *(u32*)trace_bits = EXEC_FAIL_SIG;
+    *(u64*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
 
   }
@@ -335,9 +284,6 @@ static void run_target(char** argv) {
 
   if (*(u32*)trace_bits == EXEC_FAIL_SIG)
     FATAL("Unable to execute '%s'", argv[0]);
-
-  classify_counts(trace_bits, binary_mode ?
-                  count_class_binary : count_class_human);
 
   if (!quiet_mode)
     SAYF(cRST "-- Program output ends --\n");
@@ -426,17 +372,17 @@ static void setup_signal_handlers(void) {
 static void detect_file_args(char** argv) {
 
   u32 i = 0;
-  u8* cwd = getcwd(NULL, 0);
+  char* cwd = getcwd(NULL, 0);
 
   if (!cwd) PFATAL("getcwd() failed");
 
   while (argv[i]) {
 
-    u8* aa_loc = strstr(argv[i], "@@");
+    char* aa_loc = strstr(argv[i], "@@");
 
     if (aa_loc) {
 
-      u8 *aa_subst, *n_arg;
+      char *aa_subst, *n_arg;
 
       if (!at_file) FATAL("@@ syntax is not supported by this tool.");
 
@@ -475,7 +421,7 @@ static void show_banner(void) {
 
 /* Display usage hints. */
 
-static void usage(u8* argv0) {
+static void usage(char* argv0) {
 
   show_banner();
 
@@ -508,10 +454,9 @@ static void usage(u8* argv0) {
 
 
 /* Find binary. */
+static void find_binary(char* fname) {
 
-static void find_binary(u8* fname) {
-
-  u8* env_path = 0;
+  char* env_path = 0;
   struct stat st;
 
   if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
@@ -526,7 +471,7 @@ static void find_binary(u8* fname) {
 
     while (env_path) {
 
-      u8 *cur_elem, *delim = strchr(env_path, ':');
+      char *cur_elem, *delim = strchr(env_path, ':');
 
       if (delim) {
 
@@ -562,10 +507,10 @@ static void find_binary(u8* fname) {
 
 /* Fix up argv for QEMU. */
 
-static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+static char** get_qemu_argv(char* own_loc, char** argv, int argc) {
 
   char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
-  u8 *tmp, *cp, *rsl, *own_copy;
+  char *tmp, *cp, *rsl, *own_copy;
 
   /* Workaround for a QEMU stability glitch. */
 
@@ -627,26 +572,26 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
 int main(int argc, char** argv) {
 
-  s32 opt;
+  s64 opt;
   u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0;
   u32 tcnt;
   char** use_argv;
 
   doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
 
-  while ((opt = getopt(argc,argv,"+o:m:t:A:eqZQbc")) > 0)
+  while ((opt = getopt(argc,argv,"+o:m:t:A:eqZQbc")) > 0){
 
     switch (opt) {
 
-      case 'o':
+      case 'o': {
 
         if (out_file) FATAL("Multiple -o options not supported");
         out_file = optarg;
         break;
-
+      }
       case 'm': {
 
-          u8 suffix = 'M';
+          char suffix = 'M';
 
           if (mem_limit_given) FATAL("Multiple -m options not supported");
           mem_limit_given = 1;
@@ -751,6 +696,7 @@ int main(int argc, char** argv) {
 
     }
 
+  }
   if (optind == argc || !out_file) usage(argv[0]);
 
   setup_shm();
