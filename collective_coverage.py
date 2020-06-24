@@ -1,11 +1,13 @@
 import inspect
 import getopt
+import pathlib
 import sys
 import os
 
 
 def get_full_path(filename):
-    current_file_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+    current_file_path = pathlib.Path(__file__).parent.absolute()
+    # current_file_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
     return os.path.join(current_file_path, filename)
 
 
@@ -43,7 +45,7 @@ def run_program_on_tests(input_dir, output_dir, object_file):
         input_file = os.path.join(input_dir, input_name)
         input_name = input_name.strip().split('.')[0]
         if not os.path.isfile(input_file):
-            continue
+            sys.exit("Input directory should only include input seed files and no directories.")
         coverage_file = os.path.join(output_dir, "%s_%s_coverage.txt" % (object_file_name, input_name))
         os.system('%s -o %s  -A %s -- %s @@' %(bb_coverage_path, coverage_file, input_file, object_file))
 
@@ -54,7 +56,7 @@ def calculate_collective_coverage(output_dir, collective_coverage_path):
     for coverage_file_name in os.listdir(output_dir):
         coverage_file_path = os.path.join(output_dir, coverage_file_name)
         if not os.path.isfile(coverage_file_path):
-            continue
+            sys.exit("Output directory should only include output coverage files and should be empty before running this script.")
         seed_count += 1
         with open(coverage_file_path) as coverage_file:
             for line in coverage_file:
