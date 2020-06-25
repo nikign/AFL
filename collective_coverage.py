@@ -7,7 +7,6 @@ import os
 
 def get_full_path(filename):
     current_file_path = pathlib.Path(__file__).parent.absolute()
-    # current_file_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
     return os.path.join(current_file_path, filename)
 
 
