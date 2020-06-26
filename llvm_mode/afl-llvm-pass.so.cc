@@ -91,7 +91,7 @@ u64 getBBCounter(BasicBlock *BB) {
         break;
   }
   std::string meta_string = cast<MDString>(BBid_meta->getOperand(0))->getString();
-  block_counter = std::strtoull(meta_string.c_str(), NULL, 16);//(meta_string,&block_counter,0);
+  block_counter = std::strtoull(meta_string.c_str(), NULL, 16);
   if (block_counter == ULLONG_MAX)
     FATAL("The format of the BBid did not match an unsigned int.");
   if (block_counter == 0)
