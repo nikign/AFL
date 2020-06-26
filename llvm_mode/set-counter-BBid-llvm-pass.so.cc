@@ -38,8 +38,6 @@ bool CounterBBid::runOnModule(Module &M) {
 
   LLVMContext &C = M.getContext();
 
-  IntegerType *Int64Ty = IntegerType::getInt64Ty(C);
-
   /* Instrument all the things! */
 
   u64 block_counter = 1;
@@ -47,10 +45,17 @@ bool CounterBBid::runOnModule(Module &M) {
   for (auto &F : M){
     for (auto &BB : F) {
 
-        assert(block_counter < MAP_SIZE && "counter is too large");
+        if (block_counter > MAP_SIZE)
+            FATAL("counter is too large");
         std::string value = std::to_string(block_counter);
         MDString * S = MDString::get(C, value.c_str());
+        if (!S)
+            FATAL("Metadata string was not made successfully.");
         MDNode* Meta = MDNode::get(C, S);
+        if (!Meta)
+            FATAL("Metadata could not be made successfully.");
+        if (BB.size() == 0)
+            FATAL("There is a basic block with no instructions in the program.");
         for (Instruction& instr : BB.getInstList()) {
             instr.setMetadata("BBid", Meta);
             break;

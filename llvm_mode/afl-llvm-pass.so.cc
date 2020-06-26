@@ -79,6 +79,28 @@ SmallString<32> getmd5(std::string input){
 char AFLCoverage::ID = 0;
 
 
+u64 getBBCounter(BasicBlock *BB) {
+  MDNode* BBid_meta;
+  u64 block_counter;
+  if (BB->size() == 0)
+    FATAL("There is a basic block with no instructions in the program.");
+  for (Instruction& instr : BB->getInstList()) {
+        if (!instr.hasMetadata())
+          FATAL("The first instruction of the block should include block id, have you instrumented the code with set-counter-BBid-llvm-pass first?");
+        BBid_meta = instr.getMetadata("BBid");
+        break;
+  }
+  std::string meta_string = cast<MDString>(BBid_meta->getOperand(0))->getString();
+  block_counter = std::strtoull(meta_string.c_str(), NULL, 16);//(meta_string,&block_counter,0);
+  if (block_counter == ULLONG_MAX)
+    FATAL("The format of the BBid did not match an unsigned int.");
+  if (block_counter == 0)
+    FATAL("The format of the BBid did not match an unsigned int.");
+  return(block_counter);
+}
+
+
+
 bool AFLCoverage::runOnModule(Module &M) {
 
   LLVMContext &C = M.getContext();
@@ -122,18 +144,9 @@ bool AFLCoverage::runOnModule(Module &M) {
       IRBuilder<> IRB(&(*IP));
 
       /* Make up cur_loc based on block counter */
-
-      MDNode* BBid_meta;
-      for (Instruction& instr : BB.getInstList()) {
-            assert(instr.hasMetadata() && "The first instruction of the block should include block id, have you instrumented the code with set-counter-BBid-llvm-pass first?");
-            BBid_meta = instr.getMetadata("BBid");
-            break;
-      }
-      char c;
-      std::string meta_string = cast<MDString>(BBid_meta->getOperand(0))->getString();
-      std::sscanf(meta_string.c_str(), "%" SCNd64 "%c", &block_counter, &c);
-
-      assert(block_counter < MAP_SIZE && "counter is too large");
+      block_counter = getBBCounter(&BB);
+      if (block_counter > MAP_SIZE)
+        FATAL("counter is too large");
       ConstantInt *CurBB = ConstantInt::get(Int64Ty, block_counter);
 
       /* Load SHM pointer */
