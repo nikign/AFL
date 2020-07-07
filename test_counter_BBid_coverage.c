@@ -1,1 +1,0 @@
-test_counter_BBid_coverage.c
