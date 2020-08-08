@@ -88,7 +88,7 @@ ifndef AFL_NO_X86
 
 test_build: afl-gcc afl-as counter_BBid_coverage
 	@echo "[*] Testing the CC wrapper and instrumentation output..."
-	unset AFL_USE_ASAN AFL_USE_MSAN; AFL_QUIET=1 AFL_INST_RATIO=100 AFL_PATH=. ./$(TEST_CC) $(CFLAGS) test-instr.cpp -o test-instr $(LDFLAGS)
+	unset AFL_USE_ASAN AFL_USE_MSAN; AFL_QUIET=1 AFL_INST_RATIO=100 AFL_PATH=. ./$(TEST_CC) $(CFLAGS) test-instr.c -o test-instr $(LDFLAGS)
 	< /dev/null
 	# echo 1 | ./counter_BBid_coverage -m none -q -o .test-instr1 ./test-instr
 	# @rm -f test-instr
