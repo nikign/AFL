@@ -24,7 +24,7 @@ MISC_PATH   = $(PREFIX)/share/afl
 
 # PROGS intentionally omit afl-as, which gets installed elsewhere.
 
-PROGS       = afl-gcc afl-fuzz afl-tmin afl-gotcpu afl-analyze save_BB_coverage counter_BBid_coverage
+PROGS       = afl-gcc afl-fuzz afl-tmin afl-gotcpu afl-analyze counter_BBid_coverage
 SH_PROGS    = afl-plot afl-cmin afl-whatsup
 
 CFLAGS     ?= -O3 -funroll-loops
@@ -81,15 +81,12 @@ afl-analyze: afl-analyze.c $(COMM_HDR) | test_x86
 afl-gotcpu: afl-gotcpu.c $(COMM_HDR) | test_x86
 	$(CC) $(CFLAGS) $@.c -o $@ $(LDFLAGS)
 
-save_BB_coverage: save_BB_coverage.c $(COMM_HDR) | test_x86
-	$(CC) $(CFLAGS) $@.c -o $@ $(LDFLAGS)
-
 counter_BBid_coverage: counter_BBid_coverage.c $(COMM_HDR) | test_x86
 	$(CC) $(CFLAGS) $@.c -o $@ $(LDFLAGS)
 
 ifndef AFL_NO_X86
 
-test_build: afl-gcc afl-as save_BB_coverage counter_BBid_coverage
+test_build: afl-gcc afl-as counter_BBid_coverage
 	@echo "[*] Testing the CC wrapper and instrumentation output..."
 	unset AFL_USE_ASAN AFL_USE_MSAN; AFL_QUIET=1 AFL_INST_RATIO=100 AFL_PATH=. ./$(TEST_CC) $(CFLAGS) test-instr.cpp -o test-instr $(LDFLAGS)
 	< /dev/null
