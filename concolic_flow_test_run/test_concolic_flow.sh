@@ -1,3 +1,4 @@
+set -e
 echo "** setting up environment **"
 source "../wllvm/bin/activate"
 export LLVM_COMPILER="clang"
@@ -52,4 +53,4 @@ echo "** compiling final linked klee driver with set-counter-BBid-llvm-pass **"
 clang-6.0 -c -emit-llvm -Xclang -load -Xclang ../set-counter-BBid-llvm-pass.so compiled_klee_driver.bc ../afl-llvm-rt.o -o ./modified_klee_driver_pass1.o
 
 echo "** running compiled file with KLEE **"
-../../klee/build/bin/klee --libc=uclibc -posix-runtime -output-dir klee_output modified_klee_driver_pass1.o 512
+~/klee/build/bin/klee --libc=uclibc -posix-runtime -output-dir klee_output modified_klee_driver_pass1.o 512
