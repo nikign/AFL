@@ -47,6 +47,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -173,8 +174,6 @@ bool AFLCoverage::runOnModule(Module &M) {
         location_file << M.getSourceFileName() << ":" << F.getName().str() << ":" << block_md5.c_str() << ":" << block_counter << "\n";
 
       }
-            
-      block_counter++;
 
     }
   }

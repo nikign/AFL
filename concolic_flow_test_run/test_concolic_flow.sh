@@ -19,10 +19,7 @@ clang-6.0 --gcc-toolchain="/usr/bin/gcc-8" -S -emit-llvm test_instr_modified_pas
 
 # This line is having an error with clang-6, but it works with clang-9
 echo "** compiling test_instr_modified_pass1 with afl-llvm-pass **"
-clang-6.0 -v -c -emit-llvm -Xclang -load -Xclang ../afl-llvm-pass.so test_instr_modified_pass1.bc ../afl-llvm-rt.o -o ./test_instr_modified_pass2.o
-
-echo " ** generating human readable version of test-instr_modified_pass2 **"
-clang-6.0 -c -emit-llvm test_instr_modified_pass1.bc -o test_instr_modified_pass1.ll
+clang-6.0 -Xclang -load -Xclang ../afl-llvm-pass.so test_instr_modified_pass1.bc ../afl-llvm-rt.o -o ./test_instr_modified_pass2.o
 
 echo "** comparing runs for consistency across several runs **"
 python3 ../compare_runs.py -i test_instr.bc -o ./test-instr-compare-runs.bc -n 5 -l compare_runs_log.txt

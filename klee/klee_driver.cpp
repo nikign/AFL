@@ -18,10 +18,16 @@ size_t kleeInputSize = 4096;
 
 int main(int argc, char **argv)
 {
-  if (sizeof(argv) <= 0){
+  if (argv == NULL){
     printf("You need to pass input size as an argument.");
     exit(1);
   }
+
+  if (sizeof(argv) <= 1){
+    printf("You need to pass input size as an argument.");
+    exit(2);
+  }
+
   kleeInputSize = atoi(argv[1]);
   uint8_t *KleeInputBuf = (uint8_t *)malloc(kleeInputSize * sizeof(uint8_t));
   printf("kleeInputSize: %zu\n", kleeInputSize);
