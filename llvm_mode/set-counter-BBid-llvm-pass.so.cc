@@ -46,7 +46,7 @@ bool CounterBBid::runOnModule(Module &M) {
     for (auto &BB : F) {
 
         if (block_counter > MAP_SIZE)
-            FATAL("counter is too large");
+            FATAL("counter is too large, %llu", block_counter);
         std::string value = std::to_string(block_counter);
         MDString * S = MDString::get(C, value.c_str());
         if (!S)

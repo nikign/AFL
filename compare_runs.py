@@ -38,12 +38,15 @@ def get_arguments(argv):
 def main(argv):
     bc_file, output_bc, test_count, flags, logfile_name = get_arguments(argv)
     first_counter = 0
+    bc_modified = "modified_%s" %bc_file
     current_file_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
     llvm_full_path = os.path.join(current_file_path, './afl-llvm-pass.so')
+    set_BB_counter_full_path = os.path.join(current_file_path, './set-counter-BBid-llvm-pass.so')
     afl_rt_path = os.path.join(current_file_path, "afl-llvm-rt.o")
     os.environ["BB_LOGFILE_NAME"] = logfile_name
     for i in range(0, test_count):
-        os.system('clang -Xclang -load -Xclang %s %s %s %s -o %s' % (llvm_full_path, bc_file, afl_rt_path, flags, output_bc))
+        os.system('clang-6.0 -S -emit-llvm -Xclang -load -Xclang %s %s %s -o %s' % (set_BB_counter_full_path, bc_file, flags, bc_modified))
+        os.system('clang-6.0 -Xclang -load -Xclang %s %s %s %s -o %s' % (llvm_full_path, bc_modified, afl_rt_path, flags, output_bc))
         if not os.path.isfile(logfile_name):
             print("Output file was not generated successfully.")
             continue
