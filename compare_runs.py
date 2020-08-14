@@ -45,7 +45,7 @@ def main(argv):
     afl_rt_path = os.path.join(current_file_path, "afl-llvm-rt.o")
     os.environ["BB_LOGFILE_NAME"] = logfile_name
     for i in range(0, test_count):
-        os.system('clang-6.0 -S -emit-llvm -Xclang -load -Xclang %s %s %s %s -o %s' % (set_BB_counter_full_path, bc_file, afl_rt_path, flags, bc_modified))
+        os.system('clang-6.0 -S -emit-llvm -Xclang -load -Xclang %s %s %s -o %s' % (set_BB_counter_full_path, bc_file, flags, bc_modified))
         os.system('clang-6.0 -Xclang -load -Xclang %s %s %s %s -o %s' % (llvm_full_path, bc_modified, afl_rt_path, flags, output_bc))
         if not os.path.isfile(logfile_name):
             print("Output file was not generated successfully.")
